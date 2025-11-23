@@ -10,6 +10,7 @@
   "dependencies": {
     "@shazow/whatsabi": "^0.23.0",
     "@tanstack/react-query": "latest",
+    "nuqs": "^2.8.1",
     "react": "latest",
     "react-dom": "latest",
     "viem": "latest",

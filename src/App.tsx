@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import {
   hashMessage,
   hashTypedData,
@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { decode6492Signature } from "./utils/decode6492";
 import { Section, ResultField } from "./components/Layout";
 import { whatsabi } from "@shazow/whatsabi";
+import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 
 // Helper to get chain object from ID
 const chains = [mainnet, sepolia, optimism, arbitrum, polygon, base];
@@ -117,10 +118,22 @@ function ArgRenderer({ value }: { value: any }) {
 }
 
 function App() {
-  const [message, setMessage] = useState("");
-  const [signature, setSignature] = useState("");
-  const [address, setAddress] = useState("");
-  const [chainId, setChainId] = useState(1);
+  const [message, setMessage] = useQueryState(
+    "message",
+    parseAsString.withDefault("")
+  );
+  const [signature, setSignature] = useQueryState(
+    "signature",
+    parseAsString.withDefault("")
+  );
+  const [address, setAddress] = useQueryState(
+    "address",
+    parseAsString.withDefault("")
+  );
+  const [chainId, setChainId] = useQueryState(
+    "chainId",
+    parseAsInteger.withDefault(1)
+  );
 
   const { messageHash, isTypedData, typedDataError, typedData, rawMessage } =
     useMemo(() => {
