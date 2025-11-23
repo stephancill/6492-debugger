@@ -64,3 +64,15 @@ code, pre, span, div {
   word-break: break-word;
   overflow-wrap: break-word;
 }
+
+/* Header links */
+.link {
+  color: #888;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
