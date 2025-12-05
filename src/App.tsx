@@ -17,6 +17,7 @@ import {
   arbitrum,
   polygon,
   base,
+  baseSepolia,
 } from "viem/chains";
 import { useQuery } from "@tanstack/react-query";
 import { decode6492Signature } from "./utils/decode6492";
@@ -25,7 +26,7 @@ import { whatsabi } from "@shazow/whatsabi";
 import { useQueryState, parseAsInteger, parseAsString } from "nuqs";
 
 // Helper to get chain object from ID
-const chains = [mainnet, sepolia, optimism, arbitrum, polygon, base];
+const chains = [mainnet, sepolia, optimism, arbitrum, polygon, base, baseSepolia];
 const getChain = (chainId: number) => chains.find((c) => c.id === chainId);
 
 function formatArg(arg: any): string {
