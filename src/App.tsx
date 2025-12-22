@@ -6,6 +6,7 @@ import {
 	type Abi,
 	type Address,
 	createPublicClient,
+	decodeAbiParameters,
 	decodeFunctionData,
 	type Hex,
 	hashMessage,
@@ -44,6 +45,99 @@ function formatArg(arg: any): string {
 		);
 	}
 	return String(arg);
+}
+
+type WebAuthnData = {
+	authenticatorData: Hex;
+	clientDataJSON: string;
+	parsedClientData: any;
+	challengeIndex: bigint;
+	typeIndex: bigint;
+	r: bigint;
+	s: bigint;
+};
+
+function WebAuthnDisplay({ data }: { data: WebAuthnData }) {
+	return (
+		<div
+			style={{
+				marginTop: "0.5rem",
+				marginLeft: "1rem",
+				paddingLeft: "0.75rem",
+				borderLeft: "2px solid #444",
+			}}
+		>
+			<div style={{ color: "#888", marginBottom: "0.5rem" }}>
+				Decoded WebAuthn:
+			</div>
+			<div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+				<div>
+					<span style={{ color: "#888" }}>authenticatorData: </span>
+					<code
+						style={{
+							color: "#aaccff",
+							wordBreak: "break-all",
+							display: "block",
+							marginTop: "0.25rem",
+						}}
+					>
+						{data.authenticatorData}
+					</code>
+				</div>
+				<div>
+					<span style={{ color: "#888" }}>clientDataJSON: </span>
+					<code
+						style={{
+							color: "#aaccff",
+							wordBreak: "break-all",
+							display: "block",
+							marginTop: "0.25rem",
+						}}
+					>
+						{data.parsedClientData
+							? JSON.stringify(data.parsedClientData, null, 2)
+							: data.clientDataJSON}
+					</code>
+				</div>
+				<div>
+					<span style={{ color: "#888" }}>challengeIndex: </span>
+					<code style={{ color: "#aaccff" }}>
+						{data.challengeIndex.toString()}
+					</code>
+				</div>
+				<div>
+					<span style={{ color: "#888" }}>typeIndex: </span>
+					<code style={{ color: "#aaccff" }}>{data.typeIndex.toString()}</code>
+				</div>
+				<div>
+					<span style={{ color: "#888" }}>r: </span>
+					<code
+						style={{
+							color: "#aaccff",
+							wordBreak: "break-all",
+							display: "block",
+							marginTop: "0.25rem",
+						}}
+					>
+						0x{data.r.toString(16)}
+					</code>
+				</div>
+				<div>
+					<span style={{ color: "#888" }}>s: </span>
+					<code
+						style={{
+							color: "#aaccff",
+							wordBreak: "break-all",
+							display: "block",
+							marginTop: "0.25rem",
+						}}
+					>
+						0x{data.s.toString(16)}
+					</code>
+				</div>
+			</div>
+		</div>
+	);
 }
 
 function ArgRenderer({ value }: { value: any }) {
@@ -201,6 +295,77 @@ function App() {
 		if (!signature) return null;
 		return decode6492Signature(signature);
 	}, [signature]);
+
+	// Decode the inner signature (either from 6492 or direct) as Coinbase Smart Wallet format
+	const decodedSmartWalletSignature = useMemo(() => {
+		const sigToDecode = decodedSignature?.originalERC1271Signature || signature;
+		if (!sigToDecode || !isHex(sigToDecode)) return null;
+
+		try {
+			const [decoded] = decodeAbiParameters(
+				[
+					{
+						type: "tuple",
+						components: [
+							{ name: "ownerIndex", type: "uint256" },
+							{ name: "signatureData", type: "bytes" },
+						],
+					},
+				],
+				sigToDecode as Hex,
+			);
+			return {
+				ownerIndex: decoded.ownerIndex,
+				signatureData: decoded.signatureData,
+			};
+		} catch (_e) {
+			return null;
+		}
+	}, [decodedSignature, signature]);
+
+	// Try to decode signatureData as WebAuthn if it's a passkey signature
+	const decodedWebAuthn = useMemo(() => {
+		if (!decodedSmartWalletSignature?.signatureData) return null;
+
+		try {
+			const [decoded] = decodeAbiParameters(
+				[
+					{
+						type: "tuple",
+						components: [
+							{ name: "authenticatorData", type: "bytes" },
+							{ name: "clientDataJSON", type: "string" },
+							{ name: "challengeIndex", type: "uint256" },
+							{ name: "typeIndex", type: "uint256" },
+							{ name: "r", type: "uint256" },
+							{ name: "s", type: "uint256" },
+						],
+					},
+				],
+				decodedSmartWalletSignature.signatureData as Hex,
+			);
+
+			// Try to parse clientDataJSON
+			let parsedClientData = null;
+			try {
+				parsedClientData = JSON.parse(decoded.clientDataJSON);
+			} catch (_e) {
+				// Not valid JSON, keep as string
+			}
+
+			return {
+				authenticatorData: decoded.authenticatorData,
+				clientDataJSON: decoded.clientDataJSON,
+				parsedClientData,
+				challengeIndex: decoded.challengeIndex,
+				typeIndex: decoded.typeIndex,
+				r: decoded.r,
+				s: decoded.s,
+			};
+		} catch (_e) {
+			return null;
+		}
+	}, [decodedSmartWalletSignature]);
 
 	const client = useMemo(() => {
 		return createPublicClient({
@@ -572,12 +737,104 @@ function App() {
 								rows={4}
 							/>
 						</ResultField>
+
+						{decodedSmartWalletSignature && (
+							<div
+								style={{
+									marginLeft: "1rem",
+									marginBottom: "1rem",
+									padding: "1rem",
+									borderLeft: "2px solid #444",
+									background: "#1a1a1a",
+								}}
+							>
+								<div style={{ color: "#aaa", marginBottom: "0.5rem" }}>
+									Coinbase Smart Wallet Signature:
+								</div>
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: "0.5rem",
+									}}
+								>
+									<div>
+										<span style={{ color: "#888" }}>ownerIndex: </span>
+										<code style={{ color: "#2ecc71" }}>
+											{decodedSmartWalletSignature.ownerIndex.toString()}
+										</code>
+									</div>
+									<div>
+										<span style={{ color: "#888" }}>signatureData: </span>
+										<code
+											style={{
+												color: "#aaccff",
+												wordBreak: "break-all",
+												display: "block",
+												marginTop: "0.25rem",
+											}}
+										>
+											{decodedSmartWalletSignature.signatureData}
+										</code>
+									</div>
+									{decodedWebAuthn && (
+										<WebAuthnDisplay data={decodedWebAuthn} />
+									)}
+								</div>
+							</div>
+						)}
 					</div>
 				) : (
 					signature && (
 						<div className="section">
-							<h3>Signature Status</h3>
-							<p>Not an ERC-6492 signature (Magic Bytes not found).</p>
+							<h3>Signature Analysis</h3>
+							<p style={{ color: "#888", marginBottom: "1rem" }}>
+								Not an ERC-6492 signature (Magic Bytes not found).
+							</p>
+
+							{decodedSmartWalletSignature && (
+								<div
+									style={{
+										padding: "1rem",
+										borderLeft: "2px solid #444",
+										background: "#1a1a1a",
+									}}
+								>
+									<div style={{ color: "#aaa", marginBottom: "0.5rem" }}>
+										Coinbase Smart Wallet Signature:
+									</div>
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: "0.5rem",
+										}}
+									>
+										<div>
+											<span style={{ color: "#888" }}>ownerIndex: </span>
+											<code style={{ color: "#2ecc71" }}>
+												{decodedSmartWalletSignature.ownerIndex.toString()}
+											</code>
+										</div>
+										<div>
+											<span style={{ color: "#888" }}>signatureData: </span>
+											<code
+												style={{
+													color: "#aaccff",
+													wordBreak: "break-all",
+													display: "block",
+													marginTop: "0.25rem",
+												}}
+											>
+												{decodedSmartWalletSignature.signatureData}
+											</code>
+										</div>
+										{decodedWebAuthn && (
+											<WebAuthnDisplay data={decodedWebAuthn} />
+										)}
+									</div>
+								</div>
+							)}
 						</div>
 					)
 				)}
