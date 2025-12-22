@@ -1,78 +1,83 @@
 :root {
-  background-color: #181818;
-  color: #e0e0e0;
-  color-scheme: dark;
-  font-family: monospace;
-  line-height: 1.5;
+	background-color: #181818;
+	color: #e0e0e0;
+	color-scheme: dark;
+	font-family: monospace;
+	line-height: 1.5;
 }
 
 body {
-  margin: 0;
-  padding: 0;
+	margin: 0;
+	padding: 0;
 }
 
 h1 {
-  margin: 0;
+	margin: 0;
 }
 
 label {
-  font-weight: bold;
-  color: #888;
-  text-transform: uppercase;
-  font-size: 0.9rem;
+	font-weight: bold;
+	color: #888;
+	text-transform: uppercase;
+	font-size: 0.9rem;
 }
 
-input, select, textarea {
-  background: #222;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 1rem;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
-  display: block;
-  margin-top: 0.5rem;
+input,
+select,
+textarea {
+	background: #222;
+	color: #fff;
+	border: 1px solid #444;
+	padding: 1rem;
+	font-family: inherit;
+	width: 100%;
+	box-sizing: border-box;
+	display: block;
+	margin-top: 0.5rem;
 }
 
 .container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
+	max-width: 800px;
+	margin: 0 auto;
+	padding: 2rem;
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 1rem;
+	display: grid;
+	grid-template-columns: 1fr 2fr;
+	gap: 1rem;
 }
 
 .section {
-  margin-bottom: 2rem;
+	margin-bottom: 2rem;
 }
 
 .badge {
-  background: #2c3e50;
-  color: #3498db;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.7rem;
-  margin-left: 1rem;
+	background: #2c3e50;
+	color: #3498db;
+	padding: 0.2rem 0.5rem;
+	font-size: 0.7rem;
+	margin-left: 1rem;
 }
 
 /* Wrap long content */
-code, pre, span, div {
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
+code,
+pre,
+span,
+div {
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: break-word;
 }
 
 /* Header links */
 .link {
-  color: #888;
-  text-decoration: none;
-  transition: color 0.2s;
+	color: #888;
+	text-decoration: none;
+	transition: color 0.2s;
 }
 
 .link:hover {
-  color: #fff;
-  text-decoration: underline;
+	color: #fff;
+	text-decoration: underline;
 }

@@ -1,27 +1,28 @@
 {
-  "name": "6492-debugger",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@shazow/whatsabi": "^0.23.0",
-    "@tanstack/react-query": "latest",
-    "nuqs": "^2.8.1",
-    "react": "latest",
-    "react-dom": "latest",
-    "viem": "latest",
-    "wagmi": "latest"
-  },
-  "devDependencies": {
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
-    "@wagmi/cli": "latest",
-    "typescript": "latest",
-    "vite": "latest"
-  }
+	"name": "6492-debugger",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc && vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"@shazow/whatsabi": "^0.23.0",
+		"@tanstack/react-query": "latest",
+		"nuqs": "^2.8.1",
+		"react": "latest",
+		"react-dom": "latest",
+		"viem": "latest",
+		"wagmi": "latest"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.10",
+		"@types/react": "latest",
+		"@types/react-dom": "latest",
+		"@vitejs/plugin-react": "latest",
+		"@wagmi/cli": "latest",
+		"typescript": "latest",
+		"vite": "latest"
+	}
 }
