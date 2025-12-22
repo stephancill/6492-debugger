@@ -11,6 +11,7 @@ import { useFactoryDecode } from "./hooks/useFactoryDecode";
 
 import { useMessageHash } from "./hooks/useMessageHash";
 import { useSignatureDecoding } from "./hooks/useSignatureDecoding";
+import { useVerificationCallData } from "./hooks/useVerificationCallData";
 import { useVerifySignature } from "./hooks/useVerifySignature";
 import { chains, getChain } from "./utils/chains";
 
@@ -66,6 +67,14 @@ function App() {
 		rawMessage,
 		client,
 	});
+
+	const verificationCallData = useVerificationCallData(
+		decodedSignature,
+		address,
+		signature,
+		messageHash,
+		chainId,
+	);
 
 	return (
 		<div className="container">
@@ -143,6 +152,7 @@ function App() {
 						verificationError={verificationError as Error | null}
 						verificationResult={verificationResult}
 						chainId={chainId}
+						verificationCallData={verificationCallData}
 					/>
 				)}
 
