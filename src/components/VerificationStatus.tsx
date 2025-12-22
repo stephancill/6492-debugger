@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { RpcResult } from "../hooks/useMultiRpcVerification";
 import type { VerificationCallData } from "../hooks/useVerificationCallData";
 import { getChain } from "../utils/chains";
 import { ResultField } from "./Layout";
@@ -9,7 +10,87 @@ type VerificationStatusProps = {
 	verificationResult: boolean | null | undefined;
 	chainId: number;
 	verificationCallData: VerificationCallData | null;
+	multiRpcResults?: RpcResult[];
+	isMainnet?: boolean;
 };
+
+function RpcResultBadge({ result }: { result: RpcResult }) {
+	if (result.isPending) {
+		return (
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "space-between",
+					padding: "0.5rem 0.75rem",
+					background: "rgba(255, 255, 255, 0.05)",
+					borderRadius: "4px",
+					border: "1px solid #555",
+				}}
+			>
+				<span style={{ color: "#ddd" }}>{result.name}</span>
+				<span style={{ color: "#888", fontSize: "0.85rem" }}>⏳</span>
+			</div>
+		);
+	}
+
+	if (result.error) {
+		return (
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "space-between",
+					padding: "0.5rem 0.75rem",
+					background: "rgba(241, 196, 15, 0.1)",
+					borderRadius: "4px",
+					border: "1px solid #f1c40f",
+				}}
+				title={result.error.message}
+			>
+				<span style={{ color: "#ddd" }}>{result.name}</span>
+				<span
+					style={{
+						color: "#f1c40f",
+						fontSize: "0.85rem",
+						fontWeight: "bold",
+					}}
+				>
+					⚠️ ERROR
+				</span>
+			</div>
+		);
+	}
+
+	const isValid = result.result === true;
+
+	return (
+		<div
+			style={{
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "space-between",
+				padding: "0.5rem 0.75rem",
+				background: isValid
+					? "rgba(46, 204, 113, 0.1)"
+					: "rgba(231, 76, 60, 0.1)",
+				borderRadius: "4px",
+				border: `1px solid ${isValid ? "#2ecc71" : "#e74c3c"}`,
+			}}
+		>
+			<span style={{ color: "#ddd" }}>{result.name}</span>
+			<span
+				style={{
+					color: isValid ? "#2ecc71" : "#e74c3c",
+					fontSize: "0.85rem",
+					fontWeight: "bold",
+				}}
+			>
+				{isValid ? "✓ VALID" : "✗ INVALID"}
+			</span>
+		</div>
+	);
+}
 
 export function VerificationStatus({
 	isVerifying,
@@ -17,6 +98,8 @@ export function VerificationStatus({
 	verificationResult,
 	chainId,
 	verificationCallData,
+	multiRpcResults,
+	isMainnet,
 }: VerificationStatusProps) {
 	const [calldataExpanded, setCalldataExpanded] = useState(false);
 
@@ -28,6 +111,18 @@ export function VerificationStatus({
 		? "Deploy + isValidSignature in a single call via Multicall3"
 		: "Direct ERC-1271 isValidSignature call to the signer contract";
 	const toLabel = isMulticall ? "To (Multicall3)" : "To (Signer)";
+
+	// Calculate overall status for mainnet multi-RPC
+	const showMultiRpc =
+		isMainnet && multiRpcResults && multiRpcResults.length > 0;
+	const completedResults = multiRpcResults?.filter((r) => !r.isPending) ?? [];
+	const successfulResults = completedResults.filter((r) => !r.error);
+	const validCount = successfulResults.filter((r) => r.result === true).length;
+	const invalidCount = successfulResults.filter(
+		(r) => r.result === false,
+	).length;
+	const errorCount = completedResults.filter((r) => r.error).length;
+	const pendingCount = multiRpcResults?.filter((r) => r.isPending).length ?? 0;
 
 	return (
 		<div
@@ -41,8 +136,62 @@ export function VerificationStatus({
 		>
 			<h3 style={{ marginTop: 0, marginBottom: "1rem" }}>
 				Verification Status
+				{showMultiRpc && (
+					<span
+						style={{
+							marginLeft: "0.75rem",
+							fontSize: "0.8rem",
+							color: "#888",
+							fontWeight: "normal",
+						}}
+					>
+						(Multi-RPC on Mainnet)
+					</span>
+				)}
 			</h3>
-			{isVerifying ? (
+
+			{showMultiRpc ? (
+				<>
+					{/* Summary */}
+					<div
+						style={{
+							display: "flex",
+							flexWrap: "wrap",
+							gap: "0.75rem",
+							marginBottom: "1rem",
+							padding: "0.75rem",
+							background: "rgba(255, 255, 255, 0.03)",
+							borderRadius: "6px",
+						}}
+					>
+						{pendingCount > 0 && (
+							<span style={{ color: "#888" }}>⏳ {pendingCount} pending</span>
+						)}
+						{validCount > 0 && (
+							<span style={{ color: "#2ecc71" }}>✓ {validCount} valid</span>
+						)}
+						{invalidCount > 0 && (
+							<span style={{ color: "#e74c3c" }}>✗ {invalidCount} invalid</span>
+						)}
+						{errorCount > 0 && (
+							<span style={{ color: "#f1c40f" }}>⚠️ {errorCount} errors</span>
+						)}
+					</div>
+
+					{/* Individual RPC Results */}
+					<div
+						style={{
+							display: "grid",
+							gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+							gap: "0.5rem",
+						}}
+					>
+						{multiRpcResults.map((result) => (
+							<RpcResultBadge key={result.url} result={result} />
+						))}
+					</div>
+				</>
+			) : isVerifying ? (
 				<p>Verifying signature on-chain...</p>
 			) : verificationError ? (
 				<p style={{ color: "#e74c3c" }}>Error: {verificationError.message}</p>

@@ -10,6 +10,7 @@ import { VerificationStatus } from "./components/VerificationStatus";
 import { useFactoryDecode } from "./hooks/useFactoryDecode";
 
 import { useMessageHash } from "./hooks/useMessageHash";
+import { useMultiRpcVerification } from "./hooks/useMultiRpcVerification";
 import { useSignatureDecoding } from "./hooks/useSignatureDecoding";
 import { useVerificationCallData } from "./hooks/useVerificationCallData";
 import { useVerifySignature } from "./hooks/useVerifySignature";
@@ -66,6 +67,17 @@ function App() {
 		typedDataError,
 		rawMessage,
 		client,
+	});
+
+	const { results: multiRpcResults, isMainnet } = useMultiRpcVerification({
+		address,
+		signature,
+		message,
+		isTypedData,
+		typedData,
+		typedDataError,
+		rawMessage,
+		chainId,
 	});
 
 	const verificationCallData = useVerificationCallData(
@@ -153,6 +165,8 @@ function App() {
 						verificationResult={verificationResult}
 						chainId={chainId}
 						verificationCallData={verificationCallData}
+						multiRpcResults={multiRpcResults}
+						isMainnet={isMainnet}
 					/>
 				)}
 
