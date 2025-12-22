@@ -1,215 +1,18 @@
-import { whatsabi } from "@shazow/whatsabi";
-import { useQuery } from "@tanstack/react-query";
 import { parseAsInteger, parseAsString, useQueryState } from "nuqs";
 import { useMemo } from "react";
-import {
-	type Abi,
-	type Address,
-	createPublicClient,
-	decodeAbiParameters,
-	decodeFunctionData,
-	type Hex,
-	hashMessage,
-	hashTypedData,
-	http,
-	isHex,
-} from "viem";
-import {
-	arbitrum,
-	base,
-	mainnet,
-	optimism,
-	polygon,
-	sepolia,
-} from "viem/chains";
-import { ResultField, Section } from "./components/Layout";
-import { decode6492Signature } from "./utils/decode6492";
+import { createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import { DecodedSignature } from "./components/DecodedSignature";
+import { Header } from "./components/Header";
+import { Section } from "./components/Layout";
+import { SmartWalletSignature } from "./components/SmartWalletSignature";
+import { VerificationStatus } from "./components/VerificationStatus";
+import { useFactoryDecode } from "./hooks/useFactoryDecode";
 
-// Helper to get chain object from ID
-const chains = [mainnet, sepolia, optimism, arbitrum, polygon, base];
-const getChain = (chainId: number) => chains.find((c) => c.id === chainId);
-
-function formatArg(arg: any): string {
-	if (typeof arg === "object" && arg !== null) {
-		if (Array.isArray(arg)) {
-			return `[${arg.map(formatArg).join(", ")}]`;
-		}
-		// BigInt handling
-		if (typeof arg === "bigint") {
-			return arg.toString();
-		}
-		return JSON.stringify(
-			arg,
-			(_, value) => (typeof value === "bigint" ? value.toString() : value),
-			2,
-		);
-	}
-	return String(arg);
-}
-
-type WebAuthnData = {
-	authenticatorData: Hex;
-	clientDataJSON: string;
-	parsedClientData: any;
-	challengeIndex: bigint;
-	typeIndex: bigint;
-	r: bigint;
-	s: bigint;
-};
-
-function WebAuthnDisplay({ data }: { data: WebAuthnData }) {
-	return (
-		<div
-			style={{
-				marginTop: "0.5rem",
-				marginLeft: "1rem",
-				paddingLeft: "0.75rem",
-				borderLeft: "2px solid #444",
-			}}
-		>
-			<div style={{ color: "#888", marginBottom: "0.5rem" }}>
-				Decoded WebAuthn:
-			</div>
-			<div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-				<div>
-					<span style={{ color: "#888" }}>authenticatorData: </span>
-					<code
-						style={{
-							color: "#aaccff",
-							wordBreak: "break-all",
-							display: "block",
-							marginTop: "0.25rem",
-						}}
-					>
-						{data.authenticatorData}
-					</code>
-				</div>
-				<div>
-					<span style={{ color: "#888" }}>clientDataJSON: </span>
-					<code
-						style={{
-							color: "#aaccff",
-							wordBreak: "break-all",
-							display: "block",
-							marginTop: "0.25rem",
-						}}
-					>
-						{data.parsedClientData
-							? JSON.stringify(data.parsedClientData, null, 2)
-							: data.clientDataJSON}
-					</code>
-				</div>
-				<div>
-					<span style={{ color: "#888" }}>challengeIndex: </span>
-					<code style={{ color: "#aaccff" }}>
-						{data.challengeIndex.toString()}
-					</code>
-				</div>
-				<div>
-					<span style={{ color: "#888" }}>typeIndex: </span>
-					<code style={{ color: "#aaccff" }}>{data.typeIndex.toString()}</code>
-				</div>
-				<div>
-					<span style={{ color: "#888" }}>r: </span>
-					<code
-						style={{
-							color: "#aaccff",
-							wordBreak: "break-all",
-							display: "block",
-							marginTop: "0.25rem",
-						}}
-					>
-						0x{data.r.toString(16)}
-					</code>
-				</div>
-				<div>
-					<span style={{ color: "#888" }}>s: </span>
-					<code
-						style={{
-							color: "#aaccff",
-							wordBreak: "break-all",
-							display: "block",
-							marginTop: "0.25rem",
-						}}
-					>
-						0x{data.s.toString(16)}
-					</code>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function ArgRenderer({ value }: { value: any }) {
-	if (value === null) return <span style={{ color: "#888" }}>null</span>;
-
-	if (Array.isArray(value)) {
-		return (
-			<div
-				style={{
-					paddingLeft: "1rem",
-					borderLeft: "1px solid #444",
-					marginTop: "0.25rem",
-				}}
-			>
-				{value.map((item, i) => (
-					<div key={i} style={{ marginBottom: "0.25rem" }}>
-						<ArgRenderer value={item} />
-						{i < value.length - 1 && <span style={{ color: "#666" }}>,</span>}
-					</div>
-				))}
-			</div>
-		);
-	}
-
-	if (typeof value === "object") {
-		if (value.decodedCall) {
-			return (
-				<div
-					style={{
-						background: "rgba(255, 255, 255, 0.05)",
-						padding: "0.5rem",
-						borderRadius: "4px",
-						marginTop: "0.25rem",
-					}}
-				>
-					<div style={{ marginBottom: "0.25rem" }}>
-						<span style={{ color: "#aaa" }}>Action: </span>
-						<span style={{ color: "#fff", fontWeight: "bold" }}>
-							{value.decodedCall.functionName}
-						</span>
-					</div>
-					<div style={{ paddingLeft: "0.5rem", fontSize: "0.9em" }}>
-						{value.decodedCall.args?.map((arg: any, i: number) => (
-							<div key={i} style={{ display: "flex", gap: "0.5rem" }}>
-								<span style={{ color: "#888" }}>{i}:</span>
-								<ArgRenderer value={arg} />
-							</div>
-						))}
-					</div>
-					<div
-						style={{ marginTop: "0.5rem", fontSize: "0.8em", color: "#666" }}
-					>
-						Target: {value.target || value.to}
-					</div>
-				</div>
-			);
-		}
-
-		// Fallback for other objects
-		return (
-			<span style={{ whiteSpace: "pre-wrap", color: "#aaccff" }}>
-				{formatArg(value)}
-			</span>
-		);
-	}
-
-	return (
-		<span style={{ color: "#aaccff", wordBreak: "break-all" }}>
-			{formatArg(value)}
-		</span>
-	);
-}
+import { useMessageHash } from "./hooks/useMessageHash";
+import { useSignatureDecoding } from "./hooks/useSignatureDecoding";
+import { useVerifySignature } from "./hooks/useVerifySignature";
+import { chains, getChain } from "./utils/chains";
 
 function App() {
 	const [message, setMessage] = useQueryState(
@@ -230,142 +33,10 @@ function App() {
 	);
 
 	const { messageHash, isTypedData, typedDataError, typedData, rawMessage } =
-		useMemo(() => {
-			if (!message)
-				return {
-					messageHash: null,
-					isTypedData: false,
-					typedDataError: null,
-					typedData: null,
-					rawMessage: null,
-				};
+		useMessageHash(message);
 
-			// Try to parse as JSON for Typed Data
-			try {
-				const json = JSON.parse(message);
-				// Simple heuristic for Typed Data
-				if (json.domain && json.types && json.message) {
-					let primaryType = json.primaryType;
-					if (!primaryType) {
-						const types = Object.keys(json.types).filter(
-							(k) => k !== "EIP712Domain",
-						);
-						if (types.length === 1) primaryType = types[0];
-					}
-
-					if (!primaryType) {
-						return {
-							messageHash: null,
-							isTypedData: true,
-							typedDataError: "Missing 'primaryType' in JSON",
-							typedData: null,
-							rawMessage: null,
-						};
-					}
-
-					const hash = hashTypedData({
-						domain: json.domain,
-						types: json.types,
-						primaryType: primaryType,
-						message: json.message,
-					});
-					return {
-						messageHash: hash,
-						isTypedData: true,
-						typedDataError: null,
-						typedData: { ...json, primaryType },
-						rawMessage: null,
-					};
-				}
-			} catch (_e) {
-				// Not JSON, treat as raw string
-			}
-
-			// Treat as raw string message
-			return {
-				messageHash: hashMessage(message),
-				isTypedData: false,
-				typedDataError: null,
-				typedData: null,
-				rawMessage: message,
-			};
-		}, [message]);
-
-	const decodedSignature = useMemo(() => {
-		if (!signature) return null;
-		return decode6492Signature(signature);
-	}, [signature]);
-
-	// Decode the inner signature (either from 6492 or direct) as Coinbase Smart Wallet format
-	const decodedSmartWalletSignature = useMemo(() => {
-		const sigToDecode = decodedSignature?.originalERC1271Signature || signature;
-		if (!sigToDecode || !isHex(sigToDecode)) return null;
-
-		try {
-			const [decoded] = decodeAbiParameters(
-				[
-					{
-						type: "tuple",
-						components: [
-							{ name: "ownerIndex", type: "uint256" },
-							{ name: "signatureData", type: "bytes" },
-						],
-					},
-				],
-				sigToDecode as Hex,
-			);
-			return {
-				ownerIndex: decoded.ownerIndex,
-				signatureData: decoded.signatureData,
-			};
-		} catch (_e) {
-			return null;
-		}
-	}, [decodedSignature, signature]);
-
-	// Try to decode signatureData as WebAuthn if it's a passkey signature
-	const decodedWebAuthn = useMemo(() => {
-		if (!decodedSmartWalletSignature?.signatureData) return null;
-
-		try {
-			const [decoded] = decodeAbiParameters(
-				[
-					{
-						type: "tuple",
-						components: [
-							{ name: "authenticatorData", type: "bytes" },
-							{ name: "clientDataJSON", type: "string" },
-							{ name: "challengeIndex", type: "uint256" },
-							{ name: "typeIndex", type: "uint256" },
-							{ name: "r", type: "uint256" },
-							{ name: "s", type: "uint256" },
-						],
-					},
-				],
-				decodedSmartWalletSignature.signatureData as Hex,
-			);
-
-			// Try to parse clientDataJSON
-			let parsedClientData = null;
-			try {
-				parsedClientData = JSON.parse(decoded.clientDataJSON);
-			} catch (_e) {
-				// Not valid JSON, keep as string
-			}
-
-			return {
-				authenticatorData: decoded.authenticatorData,
-				clientDataJSON: decoded.clientDataJSON,
-				parsedClientData,
-				challengeIndex: decoded.challengeIndex,
-				typeIndex: decoded.typeIndex,
-				r: decoded.r,
-				s: decoded.s,
-			};
-		} catch (_e) {
-			return null;
-		}
-	}, [decodedSmartWalletSignature]);
+	const { decodedSignature, decodedSmartWalletSignature, decodedWebAuthn } =
+		useSignatureDecoding(signature);
 
 	const client = useMemo(() => {
 		return createPublicClient({
@@ -374,163 +45,31 @@ function App() {
 		});
 	}, [chainId]);
 
-	// Decode Factory Calldata using whatsabi
-	const { data: decodedFactoryData, error: factoryDecodeError } = useQuery({
-		queryKey: [
-			"decodeFactory",
+	const { data: decodedFactoryData, error: factoryDecodeError } =
+		useFactoryDecode(
 			decodedSignature?.create2Factory,
 			decodedSignature?.factoryCalldata,
-			chainId,
-		],
-		queryFn: async () => {
-			if (
-				!decodedSignature?.create2Factory ||
-				!decodedSignature?.factoryCalldata
-			)
-				return null;
+			client,
+		);
 
-			try {
-				const result = await whatsabi.autoload(
-					decodedSignature.create2Factory,
-					{ provider: client },
-				);
-
-				if (!result.abi) return null;
-
-				const decoded = decodeFunctionData({
-					abi: result.abi as Abi,
-					data: decodedSignature.factoryCalldata as Hex,
-				});
-
-				const enrichArgs = async (args: any[]): Promise<any[]> => {
-					return Promise.all(
-						args.map(async (arg) => {
-							if (Array.isArray(arg)) {
-								return enrichArgs(arg);
-							}
-							if (arg && typeof arg === "object") {
-								const target = arg.target || arg.to;
-								const data = arg.callData || arg.data;
-
-								if (target && data && isHex(data) && data !== "0x") {
-									try {
-										const r = await whatsabi.autoload(target, {
-											provider: client,
-										});
-										if (r.abi) {
-											const decodedInner = decodeFunctionData({
-												abi: r.abi as Abi,
-												data,
-											});
-											return { ...arg, decodedCall: decodedInner };
-										}
-									} catch (e) {
-										console.log("Inner decode failed", e);
-									}
-								}
-							}
-							return arg;
-						}),
-					);
-				};
-
-				if (decoded.args) {
-					const args = await enrichArgs(decoded.args as any[]);
-					return { ...decoded, args };
-				}
-
-				return decoded;
-			} catch (e) {
-				console.error("WhatsABI decode error:", e);
-				throw e;
-			}
-		},
-		enabled:
-			!!decodedSignature?.create2Factory && !!decodedSignature?.factoryCalldata,
-		retry: false,
-	});
-
-	// Verification Query
 	const {
 		data: verificationResult,
 		isPending: isVerifying,
 		error: verificationError,
-	} = useQuery({
-		queryKey: [
-			"verifySignature",
-			address,
-			signature,
-			message,
-			chainId,
-			isTypedData,
-		],
-		queryFn: async () => {
-			if (!address || !signature || !message) return null;
-
-			if (isTypedData && typedData) {
-				return client.verifyTypedData({
-					address: address as Address,
-					domain: typedData.domain,
-					types: typedData.types,
-					primaryType: typedData.primaryType,
-					message: typedData.message,
-					signature: signature as Hex,
-				});
-			} else if (rawMessage) {
-				return client.verifyMessage({
-					address: address as Address,
-					message: rawMessage,
-					signature: signature as Hex,
-				});
-			}
-			return false;
-		},
-		enabled:
-			!!address &&
-			!!signature &&
-			!!message &&
-			!typedDataError &&
-			(isTypedData ? !!typedData : !!rawMessage),
-		retry: false,
+	} = useVerifySignature({
+		address,
+		signature,
+		message,
+		isTypedData,
+		typedData,
+		typedDataError,
+		rawMessage,
+		client,
 	});
 
 	return (
 		<div className="container">
-			<header
-				style={{
-					marginBottom: "2rem",
-					borderBottom: "1px solid #333",
-					paddingBottom: "1rem",
-				}}
-			>
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-					}}
-				>
-					<h1>ERC-6492 Signature Debugger</h1>
-					<div style={{ display: "flex", gap: "1rem", fontSize: "0.9rem" }}>
-						<a
-							href="https://eip.tools/eip/6492"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link"
-						>
-							ERC-6492
-						</a>
-						<a
-							href="https://github.com/stephancill/6492-debugger"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link"
-						>
-							GitHub
-						</a>
-					</div>
-				</div>
-			</header>
+			<Header />
 
 			<main>
 				<div className="grid">
@@ -599,191 +138,22 @@ function App() {
 
 				{/* Verification Result */}
 				{address && signature && message && (
-					<div
-						style={{
-							padding: "1.5rem",
-							borderRadius: "8px",
-							border: "1px solid #444",
-							background: "#1e1e1e",
-							marginBottom: "2rem",
-						}}
-					>
-						<h3 style={{ marginTop: 0, marginBottom: "1rem" }}>
-							Verification Status
-						</h3>
-						{isVerifying ? (
-							<p>Verifying signature on-chain...</p>
-						) : verificationError ? (
-							<p style={{ color: "#e74c3c" }}>
-								Error: {(verificationError as Error).message}
-							</p>
-						) : (
-							<div
-								style={{ display: "flex", alignItems: "center", gap: "1rem" }}
-							>
-								<span
-									style={{
-										fontWeight: "bold",
-										padding: "0.5rem 1rem",
-										borderRadius: "4px",
-										background: verificationResult
-											? "rgba(46, 204, 113, 0.2)"
-											: "rgba(231, 76, 60, 0.2)",
-										color: verificationResult ? "#2ecc71" : "#e74c3c",
-										border: `1px solid ${verificationResult ? "#2ecc71" : "#e74c3c"}`,
-									}}
-								>
-									{verificationResult ? "VALID" : "INVALID"}
-								</span>
-								<span style={{ color: "#888" }}>
-									Verified on {getChain(chainId)?.name}
-								</span>
-							</div>
-						)}
-					</div>
+					<VerificationStatus
+						isVerifying={isVerifying}
+						verificationError={verificationError as Error | null}
+						verificationResult={verificationResult}
+						chainId={chainId}
+					/>
 				)}
 
 				{decodedSignature ? (
-					<div className="section">
-						<h3>Decoded ERC-6492 Signature</h3>
-
-						<ResultField label="Create2 Factory">
-							<code>{decodedSignature.create2Factory}</code>
-						</ResultField>
-
-						<ResultField label="Factory Calldata">
-							<textarea
-								readOnly
-								value={decodedSignature.factoryCalldata}
-								rows={3}
-							/>
-						</ResultField>
-
-						{decodedFactoryData && (
-							<div
-								style={{
-									marginLeft: "1rem",
-									marginBottom: "1rem",
-									padding: "1rem",
-									borderLeft: "2px solid #444",
-									background: "#1a1a1a",
-								}}
-							>
-								<div style={{ color: "#aaa", marginBottom: "0.5rem" }}>
-									Decoded Call:
-								</div>
-								<code
-									style={{
-										display: "block",
-										marginBottom: "0.5rem",
-										color: "#fff",
-										whiteSpace: "pre-wrap",
-									}}
-								>
-									{decodedFactoryData.functionName}(
-									{decodedFactoryData.args?.map((arg, i) => (
-										<span key={i}>
-											{i > 0 && ", "}
-											{/* We use ArgRenderer here but in a inline way? 
-                          ArgRenderer returns a DIV usually for objects. 
-                          Let's keep the summary simplified or just show "..."?
-                          Actually the user wants to see args. 
-                      */}
-											{typeof arg === "object" ? "..." : formatArg(arg)}
-										</span>
-									))}
-									)
-								</code>
-
-								{/* Show detailed args if available */}
-								{decodedFactoryData.args &&
-									decodedFactoryData.args.length > 0 && (
-										<div style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
-											{decodedFactoryData.args.map((arg, i) => (
-												<div
-													key={i}
-													style={{
-														display: "flex",
-														gap: "0.5rem",
-														marginTop: "0.25rem",
-														flexDirection: "column",
-													}}
-												>
-													<span style={{ color: "#888" }}>arg[{i}]:</span>
-													<ArgRenderer value={arg} />
-												</div>
-											))}
-										</div>
-									)}
-							</div>
-						)}
-						{factoryDecodeError && (
-							<div
-								style={{
-									color: "#e74c3c",
-									fontSize: "0.9rem",
-									marginBottom: "1rem",
-								}}
-							>
-								Could not decode factory data:{" "}
-								{(factoryDecodeError as Error).message}
-							</div>
-						)}
-
-						<ResultField label="Original Signature">
-							<textarea
-								readOnly
-								value={decodedSignature.originalERC1271Signature}
-								rows={4}
-							/>
-						</ResultField>
-
-						{decodedSmartWalletSignature && (
-							<div
-								style={{
-									marginLeft: "1rem",
-									marginBottom: "1rem",
-									padding: "1rem",
-									borderLeft: "2px solid #444",
-									background: "#1a1a1a",
-								}}
-							>
-								<div style={{ color: "#aaa", marginBottom: "0.5rem" }}>
-									Coinbase Smart Wallet Signature:
-								</div>
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: "0.5rem",
-									}}
-								>
-									<div>
-										<span style={{ color: "#888" }}>ownerIndex: </span>
-										<code style={{ color: "#2ecc71" }}>
-											{decodedSmartWalletSignature.ownerIndex.toString()}
-										</code>
-									</div>
-									<div>
-										<span style={{ color: "#888" }}>signatureData: </span>
-										<code
-											style={{
-												color: "#aaccff",
-												wordBreak: "break-all",
-												display: "block",
-												marginTop: "0.25rem",
-											}}
-										>
-											{decodedSmartWalletSignature.signatureData}
-										</code>
-									</div>
-									{decodedWebAuthn && (
-										<WebAuthnDisplay data={decodedWebAuthn} />
-									)}
-								</div>
-							</div>
-						)}
-					</div>
+					<DecodedSignature
+						decodedSignature={decodedSignature}
+						decodedFactoryData={decodedFactoryData ?? null}
+						factoryDecodeError={factoryDecodeError as Error | null}
+						smartWalletSignature={decodedSmartWalletSignature}
+						webAuthn={decodedWebAuthn}
+					/>
 				) : (
 					signature && (
 						<div className="section">
@@ -793,47 +163,10 @@ function App() {
 							</p>
 
 							{decodedSmartWalletSignature && (
-								<div
-									style={{
-										padding: "1rem",
-										borderLeft: "2px solid #444",
-										background: "#1a1a1a",
-									}}
-								>
-									<div style={{ color: "#aaa", marginBottom: "0.5rem" }}>
-										Coinbase Smart Wallet Signature:
-									</div>
-									<div
-										style={{
-											display: "flex",
-											flexDirection: "column",
-											gap: "0.5rem",
-										}}
-									>
-										<div>
-											<span style={{ color: "#888" }}>ownerIndex: </span>
-											<code style={{ color: "#2ecc71" }}>
-												{decodedSmartWalletSignature.ownerIndex.toString()}
-											</code>
-										</div>
-										<div>
-											<span style={{ color: "#888" }}>signatureData: </span>
-											<code
-												style={{
-													color: "#aaccff",
-													wordBreak: "break-all",
-													display: "block",
-													marginTop: "0.25rem",
-												}}
-											>
-												{decodedSmartWalletSignature.signatureData}
-											</code>
-										</div>
-										{decodedWebAuthn && (
-											<WebAuthnDisplay data={decodedWebAuthn} />
-										)}
-									</div>
-								</div>
+								<SmartWalletSignature
+									signature={decodedSmartWalletSignature}
+									webAuthn={decodedWebAuthn}
+								/>
 							)}
 						</div>
 					)
